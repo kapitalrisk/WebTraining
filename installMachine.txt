@@ -1,0 +1,93 @@
+*.site
+IP : 51.83.46.33
+Reverse : 33.ip-51-83-46.eu
+Machine : vps661068.ovh.net
+
+Change root password 
+Install ssh key
+check /etc/hosts
+check /etc/hostname
+check /etc/apt/sources.list
+apt-get update
+apt-get upgrade
+apt-get install ntp # Very important
+apt-get install build-essential
+# Installer base de server web (mail & db & ssl)
+apt-get install postfix postfix-mysql postfix-doc mariadb-client mariadb-server openssl getmail4 rkhunter binutils dovecot-imapd dovecot-pop3d dovecot-mysql dovecot-sieve dovecot-lmtpd sudo
+mysql_secure_installation => yes to all
+edit postfix config => /etc/postfix/master.cf
+edit miradb config => /etc/mysql/mariadb.conf.d/50-server.cnf => sinon maria db marche pas
+la spéciale du chef : echo "update mysql.user set plugin ='mysql_native_password' where user='root';" | mysql -u root => permet de partager mot de passe mysql dans fichier pour partager à appli tierces
+set password dans => /etc/mysql/debian.cnf
+préconisation debian => /etc/security/limits.conf => ajouter limites de mysql
+mkdir -p /etc/systemd/system/mysql.service.d/
+/etc/systemd/system/mysql.service.d/limits.conf
+# Redemarer tout
+systemctl daemon-reload
+service mysql restart
+netstat -tap | grep mysql # vérifie si mysql tourne  et écoute
+# Install shit. Antivirus, anti spam, et autres conneries
+apt-get install amavisd-new spamassassin clamav clamav-daemon zoo unzip bzip2 arj nomarch lzop cabextract apt-listchanges libnet-ldap-perl libauthen-sasl-perl clamav-docs daemon libio-string-perl libio-socket-ssl-perl libnet-ident-perl zip libnet-dns-perl libdbd-mysql-perl postgrey
+# Install metronome xmpp server pour faire un chat
+echo "deb http://packages.prosody.im/debian stretch main" > /etc/apt/sources.list.d/metronome.list # deux chevrons si déjà existant hin
+wget http://prosody.im/files/prosody-debian-packages.key -O - | sudo apt-key add -
+apt-get update
+apt-get install git lua5.1 liblua5.1-0-dev lua-filesystem libidn11-dev libssl-dev lua-zlib lua-expat lua-event lua-bitop lua-socket lua-sec luarocks
+luarocks install lpc
+adduser --no-create-home --disabled-login --gecos 'Metronome' metronome
+cd /opt; git clone https://github.com/maranda/metronome.git metronome
+cd ./metronome; ./configure --ostype=debian --prefix=/usr
+make
+make install
+# Install php 7 and apache
+apt-get -y install apache2 apache2-doc apache2-utils libapache2-mod-php php7.0 php7.0-common php7.0-gb php7.0mysql php7.0-imap phpmyadmin php7.0-cli php7.0-cgi libapache2-mod-fcgid apache2-suexec-pristine php-pear php7.0-mcrypt mcrypt imagemagick libruby libapache2-mod-python php7.0-curl php7.0-intl php7.0-pspell php7.0-recode php7.0-sqlite3 php7.0-tidy php7.0-tidy php7.0-xmlrpc php7.0-xsl memcached php-memcache php-imagick php-gettext php7.0-zip php7.0-mbstring libapache2-mod-passenger php7.0-soap
+apache2 => yes => password empty
+a2enmod suexec rewrite ssl actions include dav_fs dav auth_digest cgi headers
+edit /etc/apache2/conf-available/httpoxy.conf => correction d'un faille proxy
+a2enconf httpoxy
+systemctl restart apache2
+#install lets encrypt
+cd /usr/local/bin
+wget https://dl.eff.org/certbot-auto
+chmod a+x certbot-auto
+./certbot-auto --install-only
+# Install php-fpm
+apt-get -y install php7.0-fpm
+a2enmod actions proxy_fcgi alias
+service apache2 restart
+# Ajout du cache
+apt-get -y install php7.0-opcache php-apcu
+service apache2 restart
+# Install pureftpd and quota + generation clé autosignée et forcer sFTP
+apt-get install pure-ftpd-common pure-ftpd-mysql quota quotatool
+openssl dhparam -out /etc/ssl/private/pure-ftpd-dhparams.pem 2048
+edit /etc/default/pure-ftpd-common
+echo 1 > /etc/pure-ftpd/conf/TLS
+mkdir -p /etc/ssl/private/
+openssl req -x509 -nodes -days 7300 -newkey rsa:2048 -keyout /etc/ssl/private/pure-ftpd.pem -out /etc/ssl/private/pure-ftpd.pem
+chmod 600 /etc/ssl/private/pure-ftpd.pem
+service pure-ftpd-mysql restart
+# Install BIND DNS server pour faire un server dns si besoin
+apt-get install bind9 dnsutils
+apt-get install haveged
+# Installer Webalizer & AWStats
+apt-get install webalizer awstats geoip-database libclass-dbi-mysql-perl libtimedate-perl
+edit /etc/cron.d/awstats
+# Install Jailkit (facultative - gestion d'users pour les enfermers sur un dossier par ex)
+apt-get install autoconf automake lbtool flex bison dbhelper binutils
+cd /tmp
+wget http://olivier.sessink.nl/jailkit/jailkit-2.20.tar.gz
+tar xvfz jailkit-2.20.tar.gz
+cd jailkit-2.20
+echo 5 > debian/compat
+./debian/rules binary
+cd ..
+rm -rf jailkit-2.20*
+# Install fail2ban & ufw firewall (important ! bani tentatives successives de co et brute force (anti ddos))
+apt-get install fail2ban
+vim /etc/fail2ban/jail.local
+apt-get install ufw # surcouche graphique à iptables
+# Install RoundCude lecteur de mails
+apt-get install roundcube roundcube-core roundcube-mysql roundcube-plugins
+=> yes => enter
+update config /etc/roundcube/config.inc.php
